@@ -17,7 +17,7 @@ public class DiscordBotService(
         client.Ready += ReadyAsync;
         client.InteractionCreated += HandleInteraction;
 
-        var token = config["DISCORD_TOKEN"] ?? Environment.GetEnvironmentVariable("DISCORD_TOKEN");
+        var token = config["DISCORD_TOKEN"];
         
         if (string.IsNullOrWhiteSpace(token))
         {
