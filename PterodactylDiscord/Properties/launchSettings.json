@@ -18,6 +18,15 @@
         "ASPNETCORE_ENVIRONMENT": "Development"
       }
     },
+    "Pterodactyl": {
+        "commandName": "Project",
+        "dotnetRunMessages": true,
+        "launchBrowser": false,
+        "applicationUrl": "http://localhost:5032",
+        "environmentVariables": {
+            "ASPNETCORE_ENVIRONMENT": "Pterodactyl"
+        }
+    },
     "IIS Express": {
       "commandName": "IISExpress",
       "launchBrowser": false,
