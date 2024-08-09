@@ -26,6 +26,8 @@ else
     builder.Services.AddDbContextFactory<ApplicationDbContext>(options =>
     {
         var connectionString = builder.Configuration.GetConnectionString("DefaultConnection");
+        Console.WriteLine($"Connection string: {connectionString}");
+        
         var version = ServerVersion.AutoDetect(connectionString);
         options.UseMySql(connectionString, version);
     });
