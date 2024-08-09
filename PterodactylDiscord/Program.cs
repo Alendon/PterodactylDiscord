@@ -11,6 +11,7 @@ DiscordSocketConfig discordConfig = new()
 
 
 var builder = WebApplication.CreateBuilder(args);
+Console.WriteLine(builder.Environment.EnvironmentName);
 
 builder.Services.AddSingleton(discordConfig);
 builder.Services.AddSingleton<DiscordSocketClient>();

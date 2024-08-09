@@ -19,7 +19,6 @@ public class DiscordBotService(
 
         var token = config["DISCORD_TOKEN"];
         logger.LogError("Token is {Token}", token);
-        logger.LogError(config.ToString());
         
         if (string.IsNullOrWhiteSpace(token))
         {
