@@ -1,16 +1,34 @@
 ﻿using Discord;
 using Discord.Interactions;
 using JetBrains.Annotations;
+using Microsoft.EntityFrameworkCore;
+using PterodactylDiscord.Models;
 
 namespace PterodactylDiscord;
 
 [UsedImplicitly]
-public class DiscordCommands : InteractionModuleBase<SocketInteractionContext>
+public class DiscordCommands(IDbContextFactory<ApplicationDbContext> dbContextFactory) : InteractionModuleBase<SocketInteractionContext>
 {
     [SlashCommand("ping", "Replies with pong")]
     public async Task PingAsync()
     {
-        await RespondAsync("Pong!");
+        await using var dbContext = await dbContextFactory.CreateDbContextAsync();
+
+        var commandCounter = await dbContext.CommandCounters.FindAsync("ping");
+
+        if (commandCounter is null)
+        {
+            commandCounter = new CommandCounter {Command = "ping", Count = 1};
+            await dbContext.CommandCounters.AddAsync(commandCounter);
+        }
+        else
+        {
+            commandCounter.Count++;
+        }
+        
+        await RespondAsync($"Pong! {commandCounter.Count}");
+        
+        await dbContext.SaveChangesAsync();
     }
 
     [RequireOwner]
