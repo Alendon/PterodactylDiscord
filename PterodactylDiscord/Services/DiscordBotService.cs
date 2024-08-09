@@ -18,7 +18,7 @@ public class DiscordBotService(
         client.InteractionCreated += HandleInteraction;
 
         var token = config["DISCORD_TOKEN"];
-        logger.LogDebug("Token is {Token}", token);
+        logger.LogError("Token is {Token}", token);
         
         if (string.IsNullOrWhiteSpace(token))
         {
