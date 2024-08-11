@@ -5,8 +5,8 @@ namespace PterodactylDiscord;
 
 public class ApplicationDbContext : DbContext
 {
-    public DbSet<CommandCounter> CommandCounters { get; set; }
-    
+    public DbSet<PterodactylServer> PterodactylServers { get; set; }
+     
     public ApplicationDbContext(DbContextOptions options) : base(options)
     {
     }

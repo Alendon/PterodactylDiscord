@@ -8,17 +8,24 @@
       <UserSecretsId>7c81034e-5740-4dd3-b4ef-33747dfc40c8</UserSecretsId>
   </PropertyGroup>
 
+    <PropertyGroup Condition=" '$(Configuration)' == 'Debug' ">
+      <WarningsAsErrors>;NU1605;SYSLIB0011;NULLABLE</WarningsAsErrors>
+    </PropertyGroup>
+
     <ItemGroup>
       <PackageReference Include="Discord.Net" Version="3.15.3" />
       <PackageReference Include="Discord.Net.Interactions" Version="3.15.3" />
       <PackageReference Include="JetBrains.Annotations" Version="2024.2.0" />
+      <PackageReference Include="MagicPacket" Version="1.2.0" />
       <PackageReference Include="Microsoft.EntityFrameworkCore" Version="8.0.7" />
       <PackageReference Include="Microsoft.EntityFrameworkCore.InMemory" Version="8.0.7" />
       <PackageReference Include="Microsoft.EntityFrameworkCore.Tools" Version="8.0.7">
         <PrivateAssets>all</PrivateAssets>
         <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
       </PackageReference>
+      <PackageReference Include="OneOf" Version="3.0.271" />
       <PackageReference Include="Pomelo.EntityFrameworkCore.MySql" Version="8.0.2" />
+      <PackageReference Include="SSH.NET" Version="2024.1.0" />
     </ItemGroup>
 
 </Project>

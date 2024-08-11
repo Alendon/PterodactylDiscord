@@ -1,6 +1,7 @@
 ﻿using Discord;
 using Discord.Interactions;
 using Discord.WebSocket;
+using PterodactylDiscord.DiscordCommands;
 
 namespace PterodactylDiscord.Services;
 
@@ -27,7 +28,8 @@ public class DiscordBotService(
         await client.LoginAsync(TokenType.Bot, token);
         await client.StartAsync();
         
-        await interactionService.AddModuleAsync<DiscordCommands>(services);
+        await interactionService.AddModuleAsync<CommonCommands>(services);
+        await interactionService.AddModuleAsync<ServerInteractionCommands>(services);
     }
 
     private async Task HandleInteraction(SocketInteraction interaction)
