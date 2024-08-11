@@ -1,4 +1,5 @@
 ﻿using System.Net.NetworkInformation;
+using System.Net.Sockets;
 using JetBrains.Annotations;
 using MagicPacket;
 using OneOf;
@@ -16,15 +17,8 @@ public class GameServerManager(IConfiguration configuration, ILogger<GameServerM
 
     public async Task<OneOf<Success, Error<string>>> EnsurePoweredUp()
     {
-        var serverIp = configuration["GameServer:Ip"] ?? throw new InvalidOperationException("GameServer:Ip not set");
-
-        var ping = new Ping();
-        var reply = await ping.SendPingAsync(serverIp);
-
-        if (reply.Status == IPStatus.Success)
-        {
+        if (await IsPoweredOn())
             return new Success();
-        }
 
         await TriggerPowerOn();
         var timeout = TimeSpan.FromMinutes(5);
@@ -52,12 +46,17 @@ public class GameServerManager(IConfiguration configuration, ILogger<GameServerM
 
     public async Task<bool> IsPoweredOn()
     {
-        var serverIp = configuration["GameServer:Ip"] ?? throw new InvalidOperationException("GameServer:Ip not set");
+        using var sshClient = BuildSshClient();
+        try
+        {
+            await sshClient.ConnectAsync(default);
+        }
+        catch (Exception e) when(e is SocketException or SshConnectionException)
+        {
+            return false;
+        }
 
-        var ping = new Ping();
-        var reply = await ping.SendPingAsync(serverIp);
-
-        return reply.Status == IPStatus.Success;
+        return true;
     }
 
     private async Task TriggerPowerOn()
