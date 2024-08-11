@@ -17,14 +17,16 @@ public class GameServerManager(IConfiguration configuration, ILogger<GameServerM
 
     public async Task<OneOf<Success, Error<string>>> EnsurePoweredUp()
     {
+        /* Dont check for powered on before. As this currently needs to use ssh and the timeout is too long
         if (await IsPoweredOn())
             return new Success();
-
+        */
+        
         await TriggerPowerOn();
         var timeout = TimeSpan.FromMinutes(5);
-        if(!await WaitForPowerOn(timeout))
+        if (!await WaitForPowerOn(timeout))
             return new Error<string>("Failed to power on server");
-        
+
         return new Success();
     }
 
@@ -51,7 +53,7 @@ public class GameServerManager(IConfiguration configuration, ILogger<GameServerM
         {
             await sshClient.ConnectAsync(default);
         }
-        catch (Exception e) when(e is SocketException or SshConnectionException)
+        catch (Exception e) when (e is SocketException or SshConnectionException)
         {
             return false;
         }
@@ -61,15 +63,16 @@ public class GameServerManager(IConfiguration configuration, ILogger<GameServerM
 
     private async Task TriggerPowerOn()
     {
-        using var client = new MagicPacketClient();
-        var address = configuration["GameServer:MacAddress"] ??
-                      throw new InvalidOperationException("GameServer:MacAddress not set");
-        if (!PhysicalAddress.TryParse(address, out var physicalAddress))
-            throw new InvalidOperationException("Invalid MAC address");
+        using var sshClient = BuildHostSshClient();
+        await sshClient.ConnectAsync(default);
 
-        await client.BroadcastOnAllInterfacesAsync(physicalAddress);
-        
-        logger.LogInformation("Sent magic packet to power on server");
+        var wolCommand = configuration["Pterodactyl:WolCommand"] ??
+                         throw new InvalidOperationException("Pterodactyl:WolCommand not set");
+
+        using var command = sshClient.CreateCommand(wolCommand);
+        await command.ExecuteAsync();
+
+        logger.LogInformation("Sent WOL command to server");
     }
 
     public async Task TriggerPowerOff()
@@ -79,7 +82,7 @@ public class GameServerManager(IConfiguration configuration, ILogger<GameServerM
 
         var shutdownCommand = configuration["GameServer:ShutdownCommand"] ??
                               throw new InvalidOperationException("GameServer:ShutdownCommand not set");
-        
+
         using var client = BuildSshClient();
 
         await client.ConnectAsync(default);
@@ -93,7 +96,7 @@ public class GameServerManager(IConfiguration configuration, ILogger<GameServerM
         catch (SshConnectionException connectionException)
         {
             // If the connection was lost, the server was probably shut down
-            if(connectionException.DisconnectReason != DisconnectReason.ConnectionLost) throw;
+            if (connectionException.DisconnectReason != DisconnectReason.ConnectionLost) throw;
         }
 
         logger.LogInformation("Sent shutdown command to server");
@@ -115,6 +118,29 @@ public class GameServerManager(IConfiguration configuration, ILogger<GameServerM
             (_, { } pass) => new PasswordAuthenticationMethod(username, pass),
             _ => throw new InvalidOperationException(
                 "No authentication method provided, GameServer:Password or GameServer:PrivateKey must be set")
+        };
+
+        var connectionInfo = new ConnectionInfo(serverIp, username, authenticationMethod);
+
+        return new SshClient(connectionInfo);
+    }
+
+    [MustDisposeResource]
+    private SshClient BuildHostSshClient()
+    {
+        var serverIp = configuration["Pterodactyl:Ip"] ?? throw new InvalidOperationException("Pterodactyl:Ip not set");
+        var username = configuration["Pterodactyl:Username"] ??
+                       throw new InvalidOperationException("Pterodactyl:Username not set");
+
+        string? password = configuration["Pterodactyl:Password"];
+        string? privateKey = configuration["Pterodactyl:PrivateKey"];
+
+        AuthenticationMethod authenticationMethod = (privateKey, password) switch
+        {
+            ({ } key, _) => new PrivateKeyAuthenticationMethod(username, new PrivateKeyFile(key)),
+            (_, { } pass) => new PasswordAuthenticationMethod(username, pass),
+            _ => throw new InvalidOperationException(
+                "No authentication method provided, Pterodactyl:Password or Pterodactyl:PrivateKey must be set")
         };
 
         var connectionInfo = new ConnectionInfo(serverIp, username, authenticationMethod);
