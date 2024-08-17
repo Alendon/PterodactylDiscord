@@ -220,8 +220,11 @@ public class PterodactylService(
         {
             using var httpClient = CreateClient();
 
+            logger.LogInformation("Sending power signal {ServerIdentifier} {Signal}", serverIdentifier, signal);
             using var httpResponse = await httpClient.PostAsync($"servers/{serverIdentifier}/power",
                 new StringContent(body, new MediaTypeHeaderValue("application/json")));
+            
+            logger.LogInformation("Received response {StatusCode}", httpResponse.StatusCode);
 
             //The api returns 200 when the wing is not available. This is likely when the server is currently starting
             if (httpResponse.StatusCode == HttpStatusCode.OK)
