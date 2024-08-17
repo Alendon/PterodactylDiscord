@@ -37,6 +37,19 @@ public class PterodactylService(
 
         return server.Name;
     }
+    
+    public async Task<OneOf<int, Error<string>>> GetShutdownTimer(string serverIdentifier)
+    {
+        await using var dbContext = await dbContextFactory.CreateDbContextAsync();
+        var server = await dbContext.PterodactylServers.FirstOrDefaultAsync(s => s.Identifier == serverIdentifier);
+
+        if (server is null)
+        {
+            return new Error<string>("Server not found");
+        }
+
+        return server.ShutdownTimer;
+    }
 
     public async Task<OneOf<Success, Error<string>>> AddServerToTrack(string serverIdentifier, int shutdownTimer,
         string name)
@@ -173,6 +186,8 @@ public class PterodactylService(
 
     public async Task<OneOf<Success, Error<string>>> StartServer(string serverIdentifier, TimeSpan timeout)
     {
+        _gameServerServices[serverIdentifier] = new LastServerState();
+        
         var result = await gameServerManager.EnsurePoweredUp();
         if (result.TryPickT1(out var error, out _)) return error;
 

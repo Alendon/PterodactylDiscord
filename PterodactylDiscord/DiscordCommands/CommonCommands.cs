@@ -1,4 +1,5 @@
-﻿using Discord.Interactions;
+﻿using Discord;
+using Discord.Interactions;
 using JetBrains.Annotations;
 using PterodactylDiscord.Services;
 
@@ -12,10 +13,38 @@ public class CommonCommands(PterodactylService pterodactylService, GameServerMan
     [RequireOwner]
     public async Task TrackServerAsync()
     {
-        await RespondWithModalAsync("track-server", new TrackServerModal
+        await RespondWithModalAsync(BuildServerModal("Track Server", "track-server"));
+    }
+    
+    [SlashCommand("update-server", "Update a tracked server")]
+    [RequireOwner]
+    public async Task UpdateServerAsync([Autocomplete(typeof(ServerSelectAutocompleteHandler))] string serverId)
+    {
+        var nameResult = await pterodactylService.GetServerName(serverId);
+        var timerResult = await pterodactylService.GetShutdownTimer(serverId);
+        
+        if (nameResult.TryPickT1(out var nameError, out var name))
         {
-            ShutdownTimer = "15"
-        });
+            await RespondAsync($"Error: {nameError}", ephemeral: true);
+            return;
+        }
+        
+        if (timerResult.TryPickT1(out var timerError, out var timer))
+        {
+            await RespondAsync($"Error: {timerError}", ephemeral: true);
+            return;
+        }
+        
+        await RespondWithModalAsync(BuildServerModal("Update Server", "update-server", serverId, name, timer.ToString()));
+    }
+    
+    private Modal BuildServerModal(string title, string modalId, string? serverId = null, string? serverName = null, string? shutdownTimer = null)
+    {
+        return new ModalBuilder(title, modalId)
+            .AddTextInput("Server Identifier", "server-id", minLength: 8, maxLength: 8, required: true, value: serverId)
+            .AddTextInput("Server Name", "server-name", minLength: 1, maxLength: 64, required: true, value: serverName)
+            .AddTextInput("Shutdown Timer", "shutdown-timer", required: true, value: shutdownTimer)
+            .Build();
     }
 
     [ModalInteraction("track-server")]
@@ -37,6 +66,32 @@ public class CommonCommands(PterodactylService pterodactylService, GameServerMan
         }
 
         await FollowupAsync("Server added to track", ephemeral: true);
+    }
+    
+    [ModalInteraction("update-server")]
+    public async Task UpdateServerModalResponseAsync(TrackServerModal modal)
+    {
+        if (!int.TryParse(modal.ShutdownTimer, out var shutdownTimer))
+        {
+            await RespondAsync("Invalid shutdown timer", ephemeral: true);
+            return;
+        }
+
+        await DeferAsync(true);
+
+        var result = await pterodactylService.UpdateServerName(modal.ServerIdentifier, modal.ServerName);
+        if (result.TryPickT1(out var error, out _))
+        {
+            await FollowupAsync($"Error: {error}", ephemeral: true);
+        }
+        
+        var timerResult = await pterodactylService.UpdateShutdownTimer(modal.ServerIdentifier, shutdownTimer);
+        if (timerResult.TryPickT1(out var timerError, out _))
+        {
+            await FollowupAsync($"Error: {timerError}", ephemeral: true);
+        }
+
+        await FollowupAsync("Server updated", ephemeral: true);
     }
 
     [SlashCommand("untrack-server", "Remove a server from track")]
