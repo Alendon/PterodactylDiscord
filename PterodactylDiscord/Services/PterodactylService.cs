@@ -1,6 +1,7 @@
 ﻿using System.Collections.Concurrent;
 using System.Net;
 using System.Net.Http.Headers;
+using System.Runtime.CompilerServices;
 using System.Text.Json.Serialization;
 using JetBrains.Annotations;
 using Microsoft.EntityFrameworkCore;
@@ -215,36 +216,49 @@ public class PterodactylService(
 
         var sleepTime = TimeSpan.FromSeconds(5);
         var start = DateTime.UtcNow;
+        logger.LogInformation("Sending power signal {ServerIdentifier} {Signal}", serverIdentifier, signal);
 
         do
         {
-            using var httpClient = CreateClient();
-
-            logger.LogInformation("Sending power signal {ServerIdentifier} {Signal}", serverIdentifier, signal);
-            using var httpResponse = await httpClient.PostAsync($"servers/{serverIdentifier}/power",
-                new StringContent(body, new MediaTypeHeaderValue("application/json")));
-            
-            logger.LogInformation("Received response {StatusCode}", httpResponse.StatusCode);
-
-            //The api returns 200 when the wing is not available. This is likely when the server is currently starting
-            if (httpResponse.StatusCode == HttpStatusCode.OK)
+            var result = await SendPowerSignalInternal(serverIdentifier, body);
+            if (!result.TryPickT1(out _, out var remainder))
             {
-                await Task.Delay(sleepTime);
-                continue;
+                return remainder;
             }
 
-            if (httpResponse.StatusCode == HttpStatusCode.NoContent)
-            {
-                logger.LogInformation("Set power state {ServerIdentifier} {Signal}", serverIdentifier, signal);
-                return new Success();
-            }
-
-            logger.LogError("Failed to set power state {StatusCode}", httpResponse.StatusCode);
-            return new Error<string>("Failed to set power state");
+            await Task.Delay(sleepTime);
         } while (DateTime.UtcNow - start < timeout);
 
         return new Error<string>("Timeout");
     }
+
+    [MethodImpl(MethodImplOptions.NoInlining)]
+    private async Task<OneOf<Success, Retry, Error<String>>> SendPowerSignalInternal(string serverIdentifier,
+        string payload)
+    {
+        using var httpClient = CreateClient();
+
+        using var httpResponse = await httpClient.PostAsync($"servers/{serverIdentifier}/power",
+            new StringContent(payload, new MediaTypeHeaderValue("application/json")));
+
+        logger.LogInformation("Received response {StatusCode}", httpResponse.StatusCode);
+
+        //The api returns 200 when the wing is not available. This is likely when the server is currently starting
+        if (httpResponse.StatusCode == HttpStatusCode.OK)
+        {
+            return new Retry();
+        }
+
+        if (httpResponse.StatusCode == HttpStatusCode.NoContent)
+        {
+            return new Success();
+        }
+
+        logger.LogError("Failed to set power state {StatusCode}", httpResponse.StatusCode);
+        return new Error<string>("Failed to set power state");
+    }
+
+    private struct Retry;
 
     [MustDisposeResource]
     private HttpClient CreateClient()
