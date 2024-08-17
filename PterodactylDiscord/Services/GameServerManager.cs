@@ -1,7 +1,5 @@
-﻿using System.Net.NetworkInformation;
-using System.Net.Sockets;
+﻿using System.Net.Sockets;
 using JetBrains.Annotations;
-using MagicPacket;
 using OneOf;
 using OneOf.Types;
 using Renci.SshNet;
@@ -30,7 +28,7 @@ public class GameServerManager(IConfiguration configuration, ILogger<GameServerM
         return new Success();
     }
 
-    public async Task<bool> WaitForPowerOn(TimeSpan timeout)
+    private async Task<bool> WaitForPowerOn(TimeSpan timeout)
     {
         var start = DateTime.UtcNow;
         while (DateTime.UtcNow - start < timeout)
@@ -48,6 +46,26 @@ public class GameServerManager(IConfiguration configuration, ILogger<GameServerM
 
     public async Task<bool> IsPoweredOn()
     {
+        //The ICMP ping is way faster than the SSH ping, especially when the server is off
+        //But we need to check both to make sure the server is in a ready state
+        return await IcmpPing() && await SshPing();
+    }
+
+    private async Task<bool> IcmpPing()
+    {
+        using var sshClient = BuildHostSshClient();
+        var gameServerIp = configuration["GameServer:Ip"] ?? throw new InvalidOperationException("GameServer:Ip not set");
+
+        await sshClient.ConnectAsync(default);
+        
+        var pingCmd = $"ping -c 1 {gameServerIp}";
+        using var command = sshClient.CreateCommand(pingCmd);
+        await command.ExecuteAsync();
+        return command.Result.Contains("1 packets transmitted, 1 received");
+    }
+
+    private async Task<bool> SshPing()
+    {
         using var sshClient = BuildSshClient();
         try
         {
@@ -57,7 +75,7 @@ public class GameServerManager(IConfiguration configuration, ILogger<GameServerM
         {
             return false;
         }
-
+        
         return true;
     }
 

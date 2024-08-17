@@ -16,7 +16,6 @@
       <PackageReference Include="Discord.Net" Version="3.15.3" />
       <PackageReference Include="Discord.Net.Interactions" Version="3.15.3" />
       <PackageReference Include="JetBrains.Annotations" Version="2024.2.0" />
-      <PackageReference Include="MagicPacket" Version="1.2.0" />
       <PackageReference Include="Microsoft.EntityFrameworkCore" Version="8.0.7" />
       <PackageReference Include="Microsoft.EntityFrameworkCore.InMemory" Version="8.0.7" />
       <PackageReference Include="Microsoft.EntityFrameworkCore.Tools" Version="8.0.7">

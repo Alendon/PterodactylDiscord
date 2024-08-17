@@ -12,7 +12,10 @@ public class CommonCommands(PterodactylService pterodactylService, GameServerMan
     [RequireOwner]
     public async Task TrackServerAsync()
     {
-        await RespondWithModalAsync<TrackServerModal>("track-server");
+        await RespondWithModalAsync("track-server", new TrackServerModal
+        {
+            ShutdownTimer = "15"
+        });
     }
 
     [ModalInteraction("track-server")]

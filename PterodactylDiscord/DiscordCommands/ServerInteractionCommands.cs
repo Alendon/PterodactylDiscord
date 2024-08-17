@@ -6,7 +6,7 @@ using PterodactylDiscord.Services;
 namespace PterodactylDiscord.DiscordCommands;
 
 [PublicAPI]
-public class ServerInteractionCommands(PterodactylService pterodactylService, GameServerManager gameServerManager)
+public class ServerInteractionCommands(PterodactylService pterodactylService)
     : InteractionModuleBase<SocketInteractionContext>
 {
     [SlashCommand("server-info", "Get information about a server")]
@@ -17,14 +17,14 @@ public class ServerInteractionCommands(PterodactylService pterodactylService, Ga
         var serverNameResponse = await pterodactylService.GetServerName(serverId);
         if (serverNameResponse.TryPickT1(out var error, out var serverName))
         {
-            await FollowupAsync($"Error: {error}", ephemeral: true);
+            await FollowupAsync($"Error: {error.Value}", ephemeral: true);
             return;
         }
 
         var serverRunningResponse = await pterodactylService.IsServerRunning(serverId);
         if (serverRunningResponse.TryPickT1(out error, out var serverRunning))
         {
-            await FollowupAsync($"Error: {error}", ephemeral: true);
+            await FollowupAsync($"Error: {error.Value}", ephemeral: true);
             return;
         }
 
@@ -41,7 +41,7 @@ public class ServerInteractionCommands(PterodactylService pterodactylService, Ga
         var response = await pterodactylService.StartServer(serverId, TimeSpan.FromMinutes(1));
         if (response.TryPickT1(out var error, out _))
         {
-            await FollowupAsync($"An error occurred while trying to start the server: {error}", ephemeral: true);
+            await FollowupAsync($"An error occurred while trying to start the server: {error.Value}", ephemeral: true);
             return;
         }
 
@@ -55,7 +55,7 @@ public class ServerInteractionCommands(PterodactylService pterodactylService, Ga
         var response = await pterodactylService.StopServer(serverId, TimeSpan.FromMinutes(1));
         if (response.TryPickT1(out var error, out _))
         {
-            await FollowupAsync($"An error occurred while trying to stop the server: {error}", ephemeral: true);
+            await FollowupAsync($"An error occurred while trying to stop the server: {error.Value}", ephemeral: true);
             return;
         }
 
@@ -69,7 +69,7 @@ public class ServerInteractionCommands(PterodactylService pterodactylService, Ga
         var response = await pterodactylService.RestartServer(serverId, TimeSpan.FromMinutes(1));
         if (response.TryPickT1(out var error, out _))
         {
-            await FollowupAsync($"An error occurred while trying to restart the server: {error}", ephemeral: true);
+            await FollowupAsync($"An error occurred while trying to restart the server: {error.Value}", ephemeral: true);
             return;
         }
 
@@ -83,7 +83,7 @@ public class ServerInteractionCommands(PterodactylService pterodactylService, Ga
         var response = await pterodactylService.KillServer(serverId, TimeSpan.FromMinutes(1));
         if (response.TryPickT1(out var error, out _))
         {
-            await FollowupAsync($"An error occurred while trying to kill the server: {error}", ephemeral: true);
+            await FollowupAsync($"An error occurred while trying to kill the server: {error.Value}", ephemeral: true);
             return;
         }
 
@@ -104,14 +104,14 @@ public class ServerInteractionCommands(PterodactylService pterodactylService, Ga
         var serverNameResponse = await pterodactylService.GetServerName(serverId);
         if (serverNameResponse.TryPickT1(out var error, out var serverName))
         {
-            await FollowupAsync($"Error: {error}", ephemeral: true);
+            await FollowupAsync($"Error: {error.Value}", ephemeral: true);
             return;
         }
 
         var serverRunningResponse = await pterodactylService.IsServerRunning(serverId);
         if (serverRunningResponse.TryPickT1(out error, out var serverRunning))
         {
-            await FollowupAsync($"Error: {error}", ephemeral: true);
+            await FollowupAsync($"Error: {error.Value}", ephemeral: true);
             return;
         }
 

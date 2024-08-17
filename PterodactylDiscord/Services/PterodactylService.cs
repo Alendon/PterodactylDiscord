@@ -335,7 +335,7 @@ public class PterodactylService(
                 var stopResult = await StopServer(identifier, TimeSpan.Zero);
                 if (stopResult.TryPickT1(out error, out _))
                 {
-                    logger.LogError("Failed to stop server {ServerIdentifier}: {Error}", identifier, error);
+                    logger.LogError("Failed to stop server {ServerIdentifier}: {Error}", identifier, error.Value);
                 }
 
                 continue;
