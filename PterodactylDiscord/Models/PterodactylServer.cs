@@ -11,6 +11,10 @@ public class PterodactylServer
     [MaxLength(64)]
     public required string Name { get; set; }
     
+    public ulong MinSentDelta { get; set; }
+    
+    public ulong MinReceivedDelta { get; set; }
+    
     /// <summary>
     /// How long to wait (in minutes) before shutting down the server when it's empty.
     /// </summary>

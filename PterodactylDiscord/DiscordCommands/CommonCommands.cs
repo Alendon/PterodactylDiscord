@@ -1,6 +1,7 @@
 ﻿using Discord;
 using Discord.Interactions;
 using JetBrains.Annotations;
+using PterodactylDiscord.Models;
 using PterodactylDiscord.Services;
 
 namespace PterodactylDiscord.DiscordCommands;
@@ -15,35 +16,31 @@ public class CommonCommands(PterodactylService pterodactylService, GameServerMan
     {
         await RespondWithModalAsync(BuildServerModal("Track Server", "track-server"));
     }
-    
+
     [SlashCommand("update-server", "Update a tracked server")]
     [RequireOwner]
     public async Task UpdateServerAsync([Autocomplete(typeof(ServerSelectAutocompleteHandler))] string serverId)
     {
-        var nameResult = await pterodactylService.GetServerName(serverId);
-        var timerResult = await pterodactylService.GetShutdownTimer(serverId);
+        var serverResult = await pterodactylService.GetServer(serverId);
         
-        if (nameResult.TryPickT1(out var nameError, out var name))
+        if (serverResult.TryPickT1(out var serverError, out var server))
         {
-            await RespondAsync($"Error: {nameError}", ephemeral: true);
+            await RespondAsync($"Error: {serverError.Value}", ephemeral: true);
             return;
         }
-        
-        if (timerResult.TryPickT1(out var timerError, out var timer))
-        {
-            await RespondAsync($"Error: {timerError}", ephemeral: true);
-            return;
-        }
-        
-        await RespondWithModalAsync(BuildServerModal("Update Server", "update-server", serverId, name, timer.ToString()));
+
+        await RespondWithModalAsync(
+            BuildServerModal("Update Server", "update-server", server));
     }
-    
-    private Modal BuildServerModal(string title, string modalId, string? serverId = null, string? serverName = null, string? shutdownTimer = null)
+
+    private Modal BuildServerModal(string title, string modalId, PterodactylServer? server = null)
     {
         return new ModalBuilder(title, modalId)
-            .AddTextInput("Server Identifier", "server-id", minLength: 8, maxLength: 8, required: true, value: serverId)
-            .AddTextInput("Server Name", "server-name", minLength: 1, maxLength: 64, required: true, value: serverName)
-            .AddTextInput("Shutdown Timer", "shutdown-timer", required: true, value: shutdownTimer)
+            .AddTextInput("Server Identifier", "server-id", minLength: 8, maxLength: 8, required: true, value: server?.Identifier)
+            .AddTextInput("Server Name", "server-name", minLength: 1, maxLength: 64, required: true, value: server?.Name)
+            .AddTextInput("Shutdown Timer", "shutdown-timer", required: true, value: server?.ShutdownTimer.ToString())
+            .AddTextInput("Min Received Bytes Per Minute", "min-received", required: true, value: server?.MinReceivedDelta.ToString())
+            .AddTextInput("Min Sent Bytes Per Minute", "min-sent", required: true, value: server?.MinSentDelta.ToString())
             .Build();
     }
 
@@ -56,9 +53,22 @@ public class CommonCommands(PterodactylService pterodactylService, GameServerMan
             return;
         }
 
+        if (!ulong.TryParse(modal.MinReceivedBytesPerMinute, out var minReceivedBytesPerMinute))
+        {
+            await RespondAsync("Invalid min received bytes per minute", ephemeral: true);
+            return;
+        }
+
+        if (!ulong.TryParse(modal.MinSentBytesPerMinute, out var minSentBytesPerMinute))
+        {
+            await RespondAsync("Invalid min sent bytes per minute", ephemeral: true);
+            return;
+        }
+
         await DeferAsync(true);
 
-        var result = await pterodactylService.AddServerToTrack(modal.ServerIdentifier, shutdownTimer, modal.ServerName);
+        var result = await pterodactylService.AddServerToTrack(modal.ServerIdentifier, shutdownTimer, modal.ServerName,
+            minReceivedBytesPerMinute, minSentBytesPerMinute);
 
         if (result.TryPickT1(out var error, out _))
         {
@@ -67,7 +77,7 @@ public class CommonCommands(PterodactylService pterodactylService, GameServerMan
 
         await FollowupAsync("Server added to track", ephemeral: true);
     }
-    
+
     [ModalInteraction("update-server")]
     public async Task UpdateServerModalResponseAsync(TrackServerModal modal)
     {
@@ -76,19 +86,32 @@ public class CommonCommands(PterodactylService pterodactylService, GameServerMan
             await RespondAsync("Invalid shutdown timer", ephemeral: true);
             return;
         }
+        
+        if (!ulong.TryParse(modal.MinReceivedBytesPerMinute, out var minReceivedBytesPerMinute))
+        {
+            await RespondAsync("Invalid min received bytes per minute", ephemeral: true);
+            return;
+        }
+
+        if (!ulong.TryParse(modal.MinSentBytesPerMinute, out var minSentBytesPerMinute))
+        {
+            await RespondAsync("Invalid min sent bytes per minute", ephemeral: true);
+            return;
+        }
 
         await DeferAsync(true);
 
-        var result = await pterodactylService.UpdateServerName(modal.ServerIdentifier, modal.ServerName);
+        var result = await pterodactylService.UpdateServer(modal.ServerIdentifier, server =>
+        {
+            server.Name = modal.ServerName;
+            server.ShutdownTimer = shutdownTimer;
+            server.MinReceivedDelta = minReceivedBytesPerMinute;
+            server.MinSentDelta = minSentBytesPerMinute;
+        });
+        
         if (result.TryPickT1(out var error, out _))
         {
             await FollowupAsync($"Error: {error}", ephemeral: true);
-        }
-        
-        var timerResult = await pterodactylService.UpdateShutdownTimer(modal.ServerIdentifier, shutdownTimer);
-        if (timerResult.TryPickT1(out var timerError, out _))
-        {
-            await FollowupAsync($"Error: {timerError}", ephemeral: true);
         }
 
         await FollowupAsync("Server updated", ephemeral: true);
@@ -106,36 +129,6 @@ public class CommonCommands(PterodactylService pterodactylService, GameServerMan
         }
 
         await FollowupAsync("Server removed from track", ephemeral: true);
-    }
-
-    [SlashCommand("set-server-name", "Set the name of a server")]
-    [RequireOwner]
-    public async Task SetServerNameAsync([Autocomplete(typeof(ServerSelectAutocompleteHandler))] string serverId,
-        string serverName)
-    {
-        await DeferAsync(true);
-        var result = await pterodactylService.UpdateServerName(serverId, serverName);
-        if (result.TryPickT1(out var error, out _))
-        {
-            await FollowupAsync($"Error: {error}", ephemeral: true);
-        }
-
-        await FollowupAsync("Server name set", ephemeral: true);
-    }
-
-    [SlashCommand("set-shutdown-timer", "Set the shutdown timer for a server")]
-    [RequireOwner]
-    public async Task SetShutdownTimerAsync([Autocomplete(typeof(ServerSelectAutocompleteHandler))] string serverId,
-        int shutdownTimer)
-    {
-        await DeferAsync(true);
-        var result = await pterodactylService.UpdateShutdownTimer(serverId, shutdownTimer);
-        if (result.TryPickT1(out var error, out _))
-        {
-            await FollowupAsync($"Error: {error}", ephemeral: true);
-        }
-
-        await FollowupAsync("Shutdown timer set", ephemeral: true);
     }
 
 
@@ -199,4 +192,12 @@ public class TrackServerModal : IModal
     [InputLabel("Shutdown Timer")]
     [ModalTextInput("shutdown-timer")]
     public string ShutdownTimer { get; set; } = string.Empty;
+
+    [InputLabel("Min Received Bytes Per Minute")]
+    [ModalTextInput("min-received")]
+    public string MinReceivedBytesPerMinute { get; set; } = string.Empty;
+
+    [InputLabel("Min Sent Bytes Per Minute")]
+    [ModalTextInput("min-sent")]
+    public string MinSentBytesPerMinute { get; set; } = string.Empty;
 }

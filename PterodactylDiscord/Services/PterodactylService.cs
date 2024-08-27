@@ -24,6 +24,19 @@ public class PterodactylService(
         await using var dbContext = await dbContextFactory.CreateDbContextAsync();
         return await dbContext.PterodactylServers.ToDictionaryAsync(s => s.Identifier, s => s.Name);
     }
+    
+    public async Task<OneOf<PterodactylServer, Error<string>>> GetServer(string serverIdentifier)
+    {
+        await using var dbContext = await dbContextFactory.CreateDbContextAsync();
+        var server = await dbContext.PterodactylServers.FirstOrDefaultAsync(s => s.Identifier == serverIdentifier);
+
+        if (server is null)
+        {
+            return new Error<string>("Server not found");
+        }
+
+        return server;
+    }
 
     public async Task<OneOf<string, Error<string>>> GetServerName(string serverIdentifier)
     {
@@ -37,22 +50,9 @@ public class PterodactylService(
 
         return server.Name;
     }
-    
-    public async Task<OneOf<int, Error<string>>> GetShutdownTimer(string serverIdentifier)
-    {
-        await using var dbContext = await dbContextFactory.CreateDbContextAsync();
-        var server = await dbContext.PterodactylServers.FirstOrDefaultAsync(s => s.Identifier == serverIdentifier);
-
-        if (server is null)
-        {
-            return new Error<string>("Server not found");
-        }
-
-        return server.ShutdownTimer;
-    }
 
     public async Task<OneOf<Success, Error<string>>> AddServerToTrack(string serverIdentifier, int shutdownTimer,
-        string name)
+        string name, ulong minReceivedDelta, ulong minSentDelta)
     {
         if (!_gameServerServices.TryAdd(serverIdentifier, new LastServerState()))
         {
@@ -76,7 +76,9 @@ public class PterodactylService(
         {
             Identifier = serverIdentifier,
             Name = name,
-            ShutdownTimer = shutdownTimer
+            ShutdownTimer = shutdownTimer,
+            MinReceivedDelta = minReceivedDelta,
+            MinSentDelta = minSentDelta
         });
         await dbContext.SaveChangesAsync();
 
@@ -106,7 +108,7 @@ public class PterodactylService(
         return new Success();
     }
 
-    public async Task<OneOf<Success, Error<string>>> UpdateServerName(string serverIdentifier, string name)
+    public async Task<OneOf<Success, Error<string>>> UpdateServer(string serverIdentifier, Action<PterodactylServer> update)
     {
         await using var dbContext = await dbContextFactory.CreateDbContextAsync();
         var server = await dbContext.PterodactylServers.FirstOrDefaultAsync(s => s.Identifier == serverIdentifier);
@@ -116,28 +118,10 @@ public class PterodactylService(
             return new Error<string>("Server not found");
         }
 
-        server.Name = name;
+        update(server);
         await dbContext.SaveChangesAsync();
 
-        logger.LogInformation("Updated server {ServerIdentifier} name to {ServerName}", serverIdentifier, name);
-        return new Success();
-    }
-
-    public async Task<OneOf<Success, Error<string>>> UpdateShutdownTimer(string serverIdentifier, int shutdownTimer)
-    {
-        await using var dbContext = await dbContextFactory.CreateDbContextAsync();
-        var server = await dbContext.PterodactylServers.FirstOrDefaultAsync(s => s.Identifier == serverIdentifier);
-
-        if (server is null)
-        {
-            return new Error<string>("Server not found");
-        }
-
-        server.ShutdownTimer = shutdownTimer;
-        await dbContext.SaveChangesAsync();
-
-        logger.LogInformation("Updated server {ServerIdentifier} shutdown timer to {ShutdownTimer}", serverIdentifier,
-            shutdownTimer);
+        logger.LogInformation("Updated server {ServerIdentifier}", serverIdentifier);
         return new Success();
     }
 
@@ -308,9 +292,6 @@ public class PterodactylService(
         }
     }
 
-    const int MinReceivedDelta = 1024;
-    const int MinSentDelta = 1024;
-
     private async Task UpdateServers()
     {
         //If the server is not powered on, we don't need to check the servers
@@ -344,10 +325,10 @@ public class PterodactylService(
                 continue;
             }
 
-            var changed = resources.Attributes.Resources.NetworkReceivedBytes > state.ReceivedBytes + MinReceivedDelta;
+            var changed = resources.Attributes.Resources.NetworkReceivedBytes > state.ReceivedBytes + server.MinReceivedDelta;
             state.ReceivedBytes = resources.Attributes.Resources.NetworkReceivedBytes;
 
-            changed |= resources.Attributes.Resources.NetworkTransmittedBytes > state.TransmittedBytes + MinSentDelta;
+            changed |= resources.Attributes.Resources.NetworkTransmittedBytes > state.TransmittedBytes + server.MinSentDelta;
             state.TransmittedBytes = resources.Attributes.Resources.NetworkTransmittedBytes;
 
             if (changed)
