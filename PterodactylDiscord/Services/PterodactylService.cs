@@ -170,6 +170,8 @@ public class PterodactylService(
 
     public async Task<OneOf<Success, Error<string>>> StartServer(string serverIdentifier, TimeSpan timeout)
     {
+        ShutdownSuspendedTill = DateTime.UtcNow + TimeSpan.FromMinutes(5);
+        
         _gameServerServices[serverIdentifier] = new LastServerState();
         
         var result = await gameServerManager.EnsurePoweredUp();
@@ -264,6 +266,8 @@ public class PterodactylService(
     {
         return httpClientFactory.CreateClient("Pterodactyl");
     }
+    
+    private DateTime ShutdownSuspendedTill { get; set; } = DateTime.MinValue;
 
     protected override async Task ExecuteAsync(CancellationToken stoppingToken)
     {
@@ -304,7 +308,7 @@ public class PterodactylService(
         foreach (var (identifier, state) in _gameServerServices)
         {
             var server = await dbContext.PterodactylServers.FirstOrDefaultAsync(s => s.Identifier == identifier);
-            if (server is null || server.ShutdownTimer < 0) continue;
+            if (server is null) continue;
 
 
             var result = await GetResources(identifier, httpClient);
@@ -322,6 +326,13 @@ public class PterodactylService(
                 state.MinutesEmpty = 0;
 
                 logger.LogInformation("Server {ServerIdentifier} is not running", identifier);
+                continue;
+            }
+
+            //shutdown timer < 0 means the server should never be shutdown
+            if (server.ShutdownTimer < 0)
+            { 
+                atLeastOneRunning = true;
                 continue;
             }
 
@@ -359,7 +370,7 @@ public class PterodactylService(
             logger.LogInformation("Server {ServerIdentifier} is running", identifier);
         }
 
-        if (!atLeastOneRunning)
+        if (!atLeastOneRunning && DateTime.UtcNow > ShutdownSuspendedTill)
         {
             logger.LogInformation("No servers running. Triggering power off");
             await gameServerManager.TriggerPowerOff();
