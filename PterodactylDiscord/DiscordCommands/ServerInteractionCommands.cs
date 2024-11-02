@@ -1,6 +1,5 @@
 ﻿using Discord;
 using Discord.Interactions;
-using Discord.WebSocket;
 using JetBrains.Annotations;
 using PterodactylDiscord.Services;
 
@@ -10,6 +9,9 @@ namespace PterodactylDiscord.DiscordCommands;
 public class ServerInteractionCommands(PterodactylService pterodactylService, ILogger<ServerInteractionCommands> logger)
     : InteractionModuleBase<SocketInteractionContext>
 {
+    private static HashSet<DateTimeOffset> _refreshingServers = new();
+
+
     [RequireOwner]
     [SlashCommand("server-info", "Get information about a server")]
     public async Task GetServerInfo([Autocomplete(typeof(ServerSelectAutocompleteHandler))] string serverId)
@@ -35,7 +37,7 @@ public class ServerInteractionCommands(PterodactylService pterodactylService, IL
 
         await FollowupAsync(embed: embed, components: components, ephemeral: true);
     }
-    
+
     [ComponentInteraction("start:*")]
     public async Task StartServer(string serverId)
     {
@@ -49,7 +51,7 @@ public class ServerInteractionCommands(PterodactylService pterodactylService, IL
 
         await UpdateServerInfo(serverId);
     }
-    
+
     [ComponentInteraction("stop:*")]
     public async Task StopServer(string serverId)
     {
@@ -63,7 +65,7 @@ public class ServerInteractionCommands(PterodactylService pterodactylService, IL
 
         await UpdateServerInfo(serverId);
     }
-    
+
     [ComponentInteraction("restart:*")]
     public async Task RestartServer(string serverId)
     {
@@ -71,13 +73,14 @@ public class ServerInteractionCommands(PterodactylService pterodactylService, IL
         var response = await pterodactylService.RestartServer(serverId, TimeSpan.FromMinutes(1));
         if (response.TryPickT1(out var error, out _))
         {
-            await FollowupAsync($"An error occurred while trying to restart the server: {error.Value}", ephemeral: true);
+            await FollowupAsync($"An error occurred while trying to restart the server: {error.Value}",
+                ephemeral: true);
             return;
         }
 
         await UpdateServerInfo(serverId);
     }
-    
+
     [ComponentInteraction("kill:*")]
     public async Task KillServer(string serverId)
     {
@@ -91,20 +94,26 @@ public class ServerInteractionCommands(PterodactylService pterodactylService, IL
 
         await UpdateServerInfo(serverId);
     }
-    
-    private static HashSet<string> _refreshingServers = new();
-    
+
+
     [ComponentInteraction("refresh:*")]
     public async Task RefreshServerInfo(string serverId)
     {
         await DeferAsync();
         await UpdateServerInfo(serverId);
+    }
 
-        var id = Context.Interaction.Token;
-        
-        if (!_refreshingServers.Add(id)) return;
-        
-        logger.LogInformation("Starting background task to refresh server info for server {ServerId}, internal id {InternalId}", serverId, id);
+    private void TriggerAutoRefresh(string serverId)
+    {
+        var id = Context.Interaction.CreatedAt;
+
+        lock (_refreshingServers)
+            if (!_refreshingServers.Add(id))
+                return;
+
+        logger.LogInformation(
+            "Starting background task to refresh server info for server {ServerId}, internal id {InternalId}", serverId,
+            id);
         //queue a new background task that every minute will refresh the server info
         _ = Task.Run(async () =>
         {
@@ -112,13 +121,14 @@ public class ServerInteractionCommands(PterodactylService pterodactylService, IL
             {
                 await Task.Delay(TimeSpan.FromMinutes(1));
                 if (await TryUpdateServerInfo(serverId)) continue;
-                
-                _refreshingServers.Remove(id);
+
+                lock (_refreshingServers)
+                    _refreshingServers.Remove(id);
                 return;
             }
         });
     }
-    
+
     private async Task<bool> TryUpdateServerInfo(string serverId)
     {
         try
@@ -153,7 +163,7 @@ public class ServerInteractionCommands(PterodactylService pterodactylService, IL
             return false;
         }
     }
-    
+
     private async Task UpdateServerInfo(string serverId)
     {
         var serverNameResponse = await pterodactylService.GetServerName(serverId);
@@ -178,6 +188,8 @@ public class ServerInteractionCommands(PterodactylService pterodactylService, IL
             x.Embed = embed;
             x.Components = components;
         });
+
+        TriggerAutoRefresh(serverId);
     }
 
 
@@ -202,7 +214,4 @@ public class ServerInteractionCommands(PterodactylService pterodactylService, IL
             .WithButton("Refresh", $"refresh:{serverId}")
             .Build();
     }
-
-
-    
 }
