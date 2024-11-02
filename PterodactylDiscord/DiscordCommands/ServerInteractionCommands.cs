@@ -92,7 +92,7 @@ public class ServerInteractionCommands(PterodactylService pterodactylService, IL
         await UpdateServerInfo(serverId);
     }
     
-    private static HashSet<ulong> _refreshingServers = new();
+    private static HashSet<string> _refreshingServers = new();
     
     [ComponentInteraction("refresh:*")]
     public async Task RefreshServerInfo(string serverId)
@@ -100,12 +100,11 @@ public class ServerInteractionCommands(PterodactylService pterodactylService, IL
         await DeferAsync();
         await UpdateServerInfo(serverId);
 
-        IDiscordInteraction interaction = Context.Interaction;
-        var id = interaction.Id;
+        var id = Context.Interaction.Token;
         
         if (!_refreshingServers.Add(id)) return;
         
-        logger.LogInformation("Starting background task to refresh server info for server {ServerId}", serverId);
+        logger.LogInformation("Starting background task to refresh server info for server {ServerId}, internal id {InternalId}", serverId, id);
         //queue a new background task that every minute will refresh the server info
         _ = Task.Run(async () =>
         {
