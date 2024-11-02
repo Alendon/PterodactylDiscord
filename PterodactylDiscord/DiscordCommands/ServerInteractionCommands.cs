@@ -222,8 +222,8 @@ public class ServerInteractionCommands(PterodactylService pterodactylService, IL
     private static MessageComponent CreateServerComponents(string serverId, ServerState state)
     {
         return new ComponentBuilder()
-            .WithButton("Start", $"start:{serverId}", disabled: state is ServerState.Running or ServerState.Starting)
-            .WithButton("Stop", $"stop:{serverId}", disabled: state is ServerState.Offline or ServerState.Stopping)
+            .WithButton("Start", $"start:{serverId}", disabled: state is not ServerState.Offline)
+            .WithButton("Stop", $"stop:{serverId}", disabled: state is not ServerState.Running)
             .WithButton("Restart", $"restart:{serverId}")
             .WithButton("Kill", $"kill:{serverId}", ButtonStyle.Danger, disabled: state is ServerState.Offline)
             .WithButton("Refresh", $"refresh:{serverId}")
