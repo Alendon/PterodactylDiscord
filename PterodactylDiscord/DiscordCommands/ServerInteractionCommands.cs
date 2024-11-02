@@ -1,6 +1,7 @@
 ﻿using Discord;
 using Discord.Interactions;
 using JetBrains.Annotations;
+using PterodactylDiscord.Models;
 using PterodactylDiscord.Services;
 
 namespace PterodactylDiscord.DiscordCommands;
@@ -25,7 +26,7 @@ public class ServerInteractionCommands(PterodactylService pterodactylService, IL
             return;
         }
 
-        var serverRunningResponse = await pterodactylService.IsServerRunning(serverId);
+        var serverRunningResponse = await pterodactylService.GetServerState(serverId);
         if (serverRunningResponse.TryPickT1(out error, out var serverRunning))
         {
             await FollowupAsync($"Error: {error.Value}", ephemeral: true);
@@ -140,7 +141,7 @@ public class ServerInteractionCommands(PterodactylService pterodactylService, IL
                 return false;
             }
 
-            var serverRunningResponse = await pterodactylService.IsServerRunning(serverId);
+            var serverRunningResponse = await pterodactylService.GetServerState(serverId);
             if (serverRunningResponse.TryPickT1(out error, out var serverRunning))
             {
                 await FollowupAsync($"Error: {error.Value}", ephemeral: true);
@@ -173,7 +174,7 @@ public class ServerInteractionCommands(PterodactylService pterodactylService, IL
             return;
         }
 
-        var serverRunningResponse = await pterodactylService.IsServerRunning(serverId);
+        var serverRunningResponse = await pterodactylService.GetServerState(serverId);
         if (serverRunningResponse.TryPickT1(out error, out var serverRunning))
         {
             await FollowupAsync($"Error: {error.Value}", ephemeral: true);
@@ -193,24 +194,38 @@ public class ServerInteractionCommands(PterodactylService pterodactylService, IL
     }
 
 
-    private static Embed CreateServerEmbed(string serverId, string serverName, bool serverRunning)
+    private static Embed CreateServerEmbed(string serverId, string serverName, ServerState serverState)
     {
         return new EmbedBuilder()
             .WithTitle(serverName)
             .WithDescription($"ID: {serverId}")
-            .WithColor(serverRunning ? Color.Green : Color.Red)
-            .AddField("Running: ", serverRunning ? "Yes" : "No")
+            .WithColor(serverState switch
+            {
+                ServerState.Offline => Color.Red,
+                ServerState.Starting => Color.Teal,
+                ServerState.Running => Color.Green,
+                ServerState.Stopping => Color.Orange,
+                _ => Color.Purple
+            })
+            .AddField("State: ", serverState switch
+            {
+                ServerState.Offline => "Offline",
+                ServerState.Starting => "Starting",
+                ServerState.Running => "Running",
+                ServerState.Stopping => "Stopping",
+                _ => "Unknown"
+            })
             .WithFooter($"Last updated: {DateTime.UtcNow}")
             .Build();
     }
 
-    private static MessageComponent CreateServerComponents(string serverId, bool serverRunning)
+    private static MessageComponent CreateServerComponents(string serverId, ServerState state)
     {
         return new ComponentBuilder()
-            .WithButton("Start", $"start:{serverId}", disabled: serverRunning)
-            .WithButton("Stop", $"stop:{serverId}", disabled: !serverRunning)
+            .WithButton("Start", $"start:{serverId}", disabled: state is ServerState.Running or ServerState.Starting)
+            .WithButton("Stop", $"stop:{serverId}", disabled: state is ServerState.Offline or ServerState.Stopping)
             .WithButton("Restart", $"restart:{serverId}")
-            .WithButton("Kill", $"kill:{serverId}", ButtonStyle.Danger, disabled: !serverRunning)
+            .WithButton("Kill", $"kill:{serverId}", ButtonStyle.Danger, disabled: state is ServerState.Offline)
             .WithButton("Refresh", $"refresh:{serverId}")
             .Build();
     }

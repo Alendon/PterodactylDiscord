@@ -125,16 +125,16 @@ public class PterodactylService(
         return new Success();
     }
 
-    public async Task<OneOf<bool, Error<string>>> IsServerRunning(string serverIdentifier)
+    public async Task<OneOf<ServerState, Error<string>>> GetServerState(string serverIdentifier)
     {
-        if (!await gameServerManager.IsPoweredOn()) return false;
+        if (!await gameServerManager.IsPoweredOn()) return ServerState.Offline;
 
         using var httpClient = CreateClient();
         var result = await GetResources(serverIdentifier, httpClient);
 
         if (result.TryPickT0(out var value, out var error))
         {
-            return value.Attributes.CurrentState == ServerState.Running;
+            return value.Attributes.CurrentState;
         }
 
         return error;
