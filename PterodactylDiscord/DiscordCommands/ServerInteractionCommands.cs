@@ -1,12 +1,13 @@
 ﻿using Discord;
 using Discord.Interactions;
+using Discord.WebSocket;
 using JetBrains.Annotations;
 using PterodactylDiscord.Services;
 
 namespace PterodactylDiscord.DiscordCommands;
 
 [PublicAPI]
-public class ServerInteractionCommands(PterodactylService pterodactylService)
+public class ServerInteractionCommands(PterodactylService pterodactylService, ILogger<ServerInteractionCommands> logger)
     : InteractionModuleBase<SocketInteractionContext>
 {
     [RequireOwner]
@@ -91,14 +92,68 @@ public class ServerInteractionCommands(PterodactylService pterodactylService)
         await UpdateServerInfo(serverId);
     }
     
+    private static HashSet<ulong> _refreshingServers = new();
     
     [ComponentInteraction("refresh:*")]
     public async Task RefreshServerInfo(string serverId)
     {
         await DeferAsync();
         await UpdateServerInfo(serverId);
+
+        IDiscordInteraction interaction = Context.Interaction;
+        var id = interaction.Id;
+        
+        if (!_refreshingServers.Add(id)) return;
+        
+        logger.LogInformation("Starting background task to refresh server info for server {ServerId}", serverId);
+        //queue a new background task that every minute will refresh the server info
+        _ = Task.Run(async () =>
+        {
+            while (true)
+            {
+                await Task.Delay(TimeSpan.FromMinutes(1));
+                if (await TryUpdateServerInfo(serverId)) continue;
+                
+                _refreshingServers.Remove(id);
+                return;
+            }
+        });
     }
     
+    private async Task<bool> TryUpdateServerInfo(string serverId)
+    {
+        try
+        {
+            var serverNameResponse = await pterodactylService.GetServerName(serverId);
+            if (serverNameResponse.TryPickT1(out var error, out var serverName))
+            {
+                await FollowupAsync($"Error: {error.Value}", ephemeral: true);
+                return false;
+            }
+
+            var serverRunningResponse = await pterodactylService.IsServerRunning(serverId);
+            if (serverRunningResponse.TryPickT1(out error, out var serverRunning))
+            {
+                await FollowupAsync($"Error: {error.Value}", ephemeral: true);
+                return false;
+            }
+
+            var embed = CreateServerEmbed(serverId, serverName, serverRunning);
+            var components = CreateServerComponents(serverId, serverRunning);
+
+            await ModifyOriginalResponseAsync(x =>
+            {
+                x.Embed = embed;
+                x.Components = components;
+            });
+            return true;
+        }
+        catch (Exception e)
+        {
+            logger.LogError(e, "An error occurred while trying to update server info");
+            return false;
+        }
+    }
     
     private async Task UpdateServerInfo(string serverId)
     {
