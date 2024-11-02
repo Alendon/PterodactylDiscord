@@ -103,9 +103,9 @@ public class ServerInteractionCommands(PterodactylService pterodactylService, IL
         await UpdateServerInfo(serverId);
     }
 
-    private void TriggerAutoRefresh(string serverId)
+    private async Task TriggerAutoRefresh(string serverId)
     {
-        var id = Context.Interaction.CreatedAt;
+        var id = (await Context.Interaction.GetOriginalResponseAsync()).CreatedAt;
 
         lock (_refreshingServers)
             if (!_refreshingServers.Add(id))
@@ -189,7 +189,7 @@ public class ServerInteractionCommands(PterodactylService pterodactylService, IL
             x.Components = components;
         });
 
-        TriggerAutoRefresh(serverId);
+        await TriggerAutoRefresh(serverId);
     }
 
 
