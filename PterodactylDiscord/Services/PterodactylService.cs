@@ -295,6 +295,9 @@ public class PterodactylService(
             _gameServerServices.TryAdd(server.Identifier, new LastServerState());
         }
     }
+    
+    DateTime nonRunningSince = DateTime.MaxValue;
+    TimeSpan shutdownDelay = TimeSpan.FromMinutes(5);
 
     private async Task UpdateServers()
     {
@@ -370,7 +373,19 @@ public class PterodactylService(
             logger.LogInformation("Server {ServerIdentifier} is running", identifier);
         }
 
-        if (!atLeastOneRunning && DateTime.UtcNow > ShutdownSuspendedTill)
+        if (atLeastOneRunning)
+        {
+            nonRunningSince = DateTime.MaxValue;
+            return;
+        }
+        
+        if(nonRunningSince == DateTime.MaxValue)
+        {
+            nonRunningSince = DateTime.UtcNow;
+            return;
+        }
+        
+        if (DateTime.UtcNow > ShutdownSuspendedTill && DateTime.UtcNow - nonRunningSince > shutdownDelay)
         {
             logger.LogInformation("No servers running. Triggering power off");
             await gameServerManager.TriggerPowerOff();

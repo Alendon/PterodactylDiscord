@@ -9,6 +9,7 @@ namespace PterodactylDiscord.DiscordCommands;
 public class ServerInteractionCommands(PterodactylService pterodactylService)
     : InteractionModuleBase<SocketInteractionContext>
 {
+    [RequireOwner]
     [SlashCommand("server-info", "Get information about a server")]
     public async Task GetServerInfo([Autocomplete(typeof(ServerSelectAutocompleteHandler))] string serverId)
     {
