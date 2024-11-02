@@ -1,5 +1,6 @@
 ﻿using Discord;
 using Discord.Interactions;
+using Discord.Rest;
 using JetBrains.Annotations;
 using PterodactylDiscord.Models;
 using PterodactylDiscord.Services;
@@ -118,10 +119,12 @@ public class ServerInteractionCommands(PterodactylService pterodactylService, IL
         //queue a new background task that every minute will refresh the server info
         _ = Task.Run(async () =>
         {
+            var originalResponse = await Context.Interaction.GetOriginalResponseAsync();
             while (true)
             {
                 await Task.Delay(TimeSpan.FromMinutes(1));
-                if (await TryUpdateServerInfo(serverId)) continue;
+                
+                if (await TryUpdateServerInfo(serverId, originalResponse)) continue;
 
                 lock (_refreshingServers)
                     _refreshingServers.Remove(id);
@@ -130,7 +133,7 @@ public class ServerInteractionCommands(PterodactylService pterodactylService, IL
         });
     }
 
-    private async Task<bool> TryUpdateServerInfo(string serverId)
+    private async Task<bool> TryUpdateServerInfo(string serverId, RestInteractionMessage originalResponse)
     {
         try
         {
@@ -150,8 +153,8 @@ public class ServerInteractionCommands(PterodactylService pterodactylService, IL
 
             var embed = CreateServerEmbed(serverId, serverName, serverRunning);
             var components = CreateServerComponents(serverId, serverRunning);
-
-            await ModifyOriginalResponseAsync(x =>
+            
+            await originalResponse.ModifyAsync(x =>
             {
                 x.Embed = embed;
                 x.Components = components;
@@ -183,7 +186,7 @@ public class ServerInteractionCommands(PterodactylService pterodactylService, IL
 
         var embed = CreateServerEmbed(serverId, serverName, serverRunning);
         var components = CreateServerComponents(serverId, serverRunning);
-
+        
         await ModifyOriginalResponseAsync(x =>
         {
             x.Embed = embed;
