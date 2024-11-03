@@ -225,7 +225,7 @@ public class ServerInteractionCommands(PterodactylService pterodactylService, IL
                 ServerState.Stopping => "Stopping",
                 _ => "Unknown"
             })
-            .WithFooter($"Last updated: {DateTime.UtcNow}")
+            .WithCurrentTimestamp()
             .Build();
     }
 
