@@ -119,6 +119,10 @@ public class ServerInteractionCommands(PterodactylService pterodactylService, IL
         //queue a new background task that every minute will refresh the server info
         _ = Task.Run(async () =>
         {
+            //debug: get all interfaces Contex.Interaction is implementing
+            var interfaces = Context.Interaction.GetType().GetInterfaces().Select(x => x.FullName);
+            logger.LogInformation("Interfaces: {Interfaces}", String.Join(';', interfaces));
+            
             var originalResponse = await Context.Interaction.GetOriginalResponseAsync();
             while (true)
             {
