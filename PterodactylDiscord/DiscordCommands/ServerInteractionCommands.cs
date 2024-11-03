@@ -119,16 +119,19 @@ public class ServerInteractionCommands(PterodactylService pterodactylService, IL
         //queue a new background task that every minute will refresh the server info
         _ = Task.Run(async () =>
         {
-            //debug: get all interfaces Contex.Interaction is implementing
-            var interfaces = Context.Interaction.GetType().GetInterfaces().Select(x => x.FullName);
-            logger.LogInformation("Interfaces: {Interfaces}", String.Join(';', interfaces));
+            if (Context.Interaction is not IComponentInteraction interaction)
+            {
+                logger.LogError("Interaction is not a component interaction");
+                return;
+            }
+
+            var message = interaction.Message;
             
-            var originalResponse = await Context.Interaction.GetOriginalResponseAsync();
             while (true)
             {
                 await Task.Delay(TimeSpan.FromMinutes(1));
                 
-                if (await TryUpdateServerInfo(serverId, originalResponse)) continue;
+                if (await TryUpdateServerInfo(serverId, message)) continue;
 
                 lock (_refreshingServers)
                     _refreshingServers.Remove(id);
@@ -137,7 +140,7 @@ public class ServerInteractionCommands(PterodactylService pterodactylService, IL
         });
     }
 
-    private async Task<bool> TryUpdateServerInfo(string serverId, RestInteractionMessage originalResponse)
+    private async Task<bool> TryUpdateServerInfo(string serverId, IUserMessage originalResponse)
     {
         try
         {
